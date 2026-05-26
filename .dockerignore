@@ -1,0 +1,6 @@
+.git
+.github
+terraform/
+*.tfvars
+__pycache__
+*.pyc
