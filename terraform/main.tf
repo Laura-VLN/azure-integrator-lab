@@ -30,6 +30,18 @@ resource "azurerm_network_security_group" "nsg_integrator" {
   name = "${var.prefix}-nsg"
   resource_group_name = azurerm_resource_group.rg_integrator.name
   location = var.location
+
+    security_rule {
+    name                       = "allow-http"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "80"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
 }
 
 resource "azurerm_subnet_network_security_group_association" "nsg_association_aks" {
@@ -62,8 +74,9 @@ resource "azurerm_kubernetes_cluster" "aks_integrator" {
     name = "${var.prefix}-aks-cluster"
     resource_group_name = azurerm_resource_group.rg_integrator.name
     location = var.location
-    role_based_access_control_enabled = true
     dns_prefix = var.prefix
+    role_based_access_control_enabled = true
+    oidc_issuer_enabled               = true
 
   default_node_pool {
     name = "nodepool"
@@ -74,4 +87,10 @@ resource "azurerm_kubernetes_cluster" "aks_integrator" {
   identity {
     type = "SystemAssigned"
   }
+}
+
+resource "azurerm_role_assignment" "role_assignment" {
+  scope                = azurerm_container_registry.acr_integrator.id
+  role_definition_name = "AcrPull"
+  principal_id         = azurerm_kubernetes_cluster.aks_integrator.kubelet_identity[0].object_id
 }
