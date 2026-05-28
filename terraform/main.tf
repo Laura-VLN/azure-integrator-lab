@@ -63,11 +63,14 @@ resource "azurerm_container_registry" "acr_integrator" {
 }
 
 resource "azurerm_key_vault" "vault_integrator" {
-  name = "${var.prefix}-vault"
-  resource_group_name = azurerm_resource_group.rg_integrator.name
-  location = var.location
-  sku_name = "standard"
-  tenant_id = data.azuread_client_config.current.tenant_id
+  name                       = "${var.prefix}-vault"
+  resource_group_name        = azurerm_resource_group.rg_integrator.name
+  location                   = var.location
+  sku_name                   = "standard"
+  tenant_id                  = data.azuread_client_config.current.tenant_id
+  soft_delete_retention_days = 7
+  purge_protection_enabled   = false
+  enable_rbac_authorization = true
 }
 
 resource "azurerm_kubernetes_cluster" "aks_integrator" {
@@ -87,10 +90,20 @@ resource "azurerm_kubernetes_cluster" "aks_integrator" {
   identity {
     type = "SystemAssigned"
   }
+
+  key_vault_secrets_provider {
+    secret_rotation_enabled = true
+  }
 }
 
-resource "azurerm_role_assignment" "role_assignment" {
-  scope                = azurerm_container_registry.acr_integrator.id
-  role_definition_name = "AcrPull"
-  principal_id         = azurerm_kubernetes_cluster.aks_integrator.kubelet_identity[0].object_id
+resource "azurerm_role_assignment" "kv_secrets_officer" {
+  scope                = azurerm_key_vault.vault_integrator.id
+  role_definition_name = "Key Vault Secrets Officer"
+  principal_id         = data.azuread_client_config.current.object_id
+}
+
+resource "azurerm_role_assignment" "kv_csi_reader" {
+  scope                = azurerm_key_vault.vault_integrator.id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = "ad27689a-12fc-4702-94e5-f3c0400f5dfa"
 }
